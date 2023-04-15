@@ -152,7 +152,7 @@ class BaseAviary(gym.Env):
         #### Connect to PyBullet ###################################
         if self.GUI:
             #### With debug GUI ########################################
-            self.CLIENT = p.connect(p.GUI) # p.connect(p.GUI, options="--opengl2")
+            self.CLIENT = p.connect(p.GUI)
             for i in [p.COV_ENABLE_RGB_BUFFER_PREVIEW, p.COV_ENABLE_DEPTH_BUFFER_PREVIEW, p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW]:
                 p.configureDebugVisualizer(i, 0, physicsClientId=self.CLIENT)
             p.resetDebugVisualizerCamera(cameraDistance=3,
@@ -451,13 +451,17 @@ class BaseAviary(gym.Env):
         if self.PHYSICS == Physics.DYN:
             self.rpy_rates = np.zeros((self.NUM_DRONES, 3))
         #### Set PyBullet's parameters #############################
-        p.setGravity(0, 0, -self.G, physicsClientId=self.CLIENT)
-        p.setRealTimeSimulation(0, physicsClientId=self.CLIENT)
-        p.setTimeStep(self.TIMESTEP, physicsClientId=self.CLIENT)
+        # p.setGravity(0, 0, -self.G, physicsClientId=self.CLIENT)
+        # p.setRealTimeSimulation(0, physicsClientId=self.CLIENT)
+        # p.setTimeStep(self.TIMESTEP, physicsClientId=self.CLIENT)
+        p.setGravity(0, 0, -9.81)
+        p.setPhysicsEngineParameter(fixedTimeStep=0.001, numSubSteps=1)
+
         p.setAdditionalSearchPath(pybullet_data.getDataPath(), physicsClientId=self.CLIENT)
         #### Load ground plane, drone and obstacles models #########
         self.PLANE_ID = p.loadURDF("plane.urdf", physicsClientId=self.CLIENT)
-
+        # self.PLANE_ID = p.loadURDF("/home/robocaster/projects/locomotion/gym-pybullet-drones/gym_pybullet_drones/envs/resources/plane_with_restitution.urdf", physicsClientId=self.CLIENT)
+        
         self.DRONE_IDS = np.array([p.loadURDF(pkg_resources.resource_filename('gym_pybullet_drones', 'assets/'+self.URDF),
                                               self.INIT_XYZS[i,:],
                                               p.getQuaternionFromEuler(self.INIT_RPYS[i,:]),
@@ -467,11 +471,16 @@ class BaseAviary(gym.Env):
         #### Remove default damping #################################
         # for i in range(self.NUM_DRONES):
         #     p.changeDynamics(self.DRONE_IDS[i], -1, linearDamping=0, angularDamping=0)
-        for i in range(self.NUM_DRONES):
-            #### Show the frame of reference of the drone, note that ###
-            #### It severly slows down the GUI #########################
-            if self.GUI and self.USER_DEBUG:
-                self._showDroneLocalAxes(i)
+        
+        
+        
+        # for i in range(self.NUM_DRONES):
+        #     #### Show the frame of reference of the drone, note that ###
+        #     #### It severly slows down the GUI #########################
+        #     if self.GUI and self.USER_DEBUG:
+        #         self._showDroneLocalAxes(i)
+
+
             #### Disable collisions between drones' and the ground plane
             #### E.g., to start a drone at [0,0,0] #####################
             # p.setCollisionFilterPair(bodyUniqueIdA=self.PLANE_ID, bodyUniqueIdB=self.DRONE_IDS[i], linkIndexA=-1, linkIndexB=-1, enableCollision=0, physicsClientId=self.CLIENT)
@@ -942,9 +951,9 @@ class BaseAviary(gym.Env):
         These obstacles are loaded from standard URDF files included in Bullet.
 
         """
-        p.loadURDF("samurai.urdf",
-                   physicsClientId=self.CLIENT
-                   )
+        # p.loadURDF("samurai.urdf",
+        #            physicsClientId=self.CLIENT
+        #            )
         p.loadURDF("duck_vhacd.urdf",
                    [-.5, -.5, .05],
                    p.getQuaternionFromEuler([0, 0, 0]),
