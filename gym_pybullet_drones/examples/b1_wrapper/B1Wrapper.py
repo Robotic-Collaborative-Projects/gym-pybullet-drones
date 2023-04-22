@@ -9,7 +9,7 @@ from b1_wrapper.inverse_dynamic_controller import InverseDynamicsController
 
 class B1Wrapper():
     
-    def __init__(self, params, initial_position = np.array([0, 0, 0.4,])):
+    def __init__(self, params, initial_position = np.array([0, 0, 0.4])):
         self.params = params       
         #simulation time and counter variables 
         self.sim_t = 0
@@ -37,13 +37,24 @@ class B1Wrapper():
         self.robot_id_ctrl = InverseDynamicsController(self.pin_robot, self.f_arr)
         self.robot_id_ctrl.set_gains(params['gait_params'].kp, params['gait_params'].kd)
         #Velocity Commands to the robot
-        self.v_des = np.array([0.2,0.0,0.0])
-        self.w_des = 0.00
+        self.v_des = np.zeros((3,))
+        self.w_des = 0
 
     
-    def update(self):
+    def update(self, desired_state=np.zeros((2,))):
         # Get the robot states
         q, v = self.robot.get_state()
+        error = desired_state-q[0:2]
+            
+        if abs(error[0]) > .15:
+            self.v_des[0] = np.sign(error[0])*.35
+        else:
+            self.v_des[0] = np.sign(error[0])*.05
+
+        if abs(error[1]) > .15:
+            self.v_des[1] = np.sign(error[1])*.2
+        else:
+            self.v_des[1] = np.sign(error[1])*.05
         q[3:7] = self.quaternion_workaround(q) #Reset yaw to zero
         contact_configuration = self.robot.get_force()[0]
 
@@ -77,6 +88,7 @@ class B1Wrapper():
         self.pln_ctr = int((self.pln_ctr + 1)%(self.params['plan_freq']/self.params['sim_dt']))
         self.o +=1
         self.index +=1
+        return self.robot.get_state()
 
     def set_cmd(self, v_des, w_des):
         self.v_des = v_des
