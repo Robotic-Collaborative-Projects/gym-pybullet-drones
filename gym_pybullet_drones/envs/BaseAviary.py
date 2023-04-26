@@ -244,7 +244,7 @@ class BaseAviary(gym.Env):
     
     ################################################################################
 
-    def step(self,
+    def update(self,
              action
              ):
         """Advances the environment by one simulation step.
@@ -341,8 +341,8 @@ class BaseAviary(gym.Env):
                     self._drag(self.last_clipped_action[i, :], i)
                     self._downwash(i)
             #### PyBullet computes the new state, unless Physics.DYN ###
-            if self.PHYSICS != Physics.DYN:
-                p.stepSimulation(physicsClientId=self.CLIENT)
+            # if self.PHYSICS != Physics.DYN:
+            #     p.stepSimulation(physicsClientId=self.CLIENT)
             #### Save the last applied action (e.g. to compute drag) ###
             self.last_clipped_action = clipped_action
         #### Update and store the drones kinematic information #####

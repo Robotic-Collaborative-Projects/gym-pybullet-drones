@@ -44,8 +44,9 @@ class B1Wrapper():
     def update(self, desired_state=np.zeros((2,))):
         # Get the robot states
         q, v = self.robot.get_state()
-        error = desired_state-q[0:2]
-            
+        
+        # Position Controller
+        error = desired_state-q[0:2]    
         if abs(error[0]) > .15:
             self.v_des[0] = np.sign(error[0])*.35
         else:
@@ -55,6 +56,8 @@ class B1Wrapper():
             self.v_des[1] = np.sign(error[1])*.2
         else:
             self.v_des[1] = np.sign(error[1])*.05
+
+        # BiconMP velocity Controller
         q[3:7] = self.quaternion_workaround(q) #Reset yaw to zero
         contact_configuration = self.robot.get_force()[0]
 
