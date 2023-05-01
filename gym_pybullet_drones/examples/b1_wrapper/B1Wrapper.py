@@ -39,23 +39,13 @@ class B1Wrapper():
         #Velocity Commands to the robot
         self.v_des = np.zeros((3,))
         self.w_des = 0
-
+        self.IMG_RES = np.array([64, 48])
     
-    def update(self, desired_state=np.zeros((2,))):
+    def update(self, get_image_bool=False):
         # Get the robot states
         q, v = self.robot.get_state()
-        
-        # Position Controller
-        error = desired_state-q[0:2]    
-        if abs(error[0]) > .15:
-            self.v_des[0] = np.sign(error[0])*.35
-        else:
-            self.v_des[0] = np.sign(error[0])*.05
-
-        if abs(error[1]) > .15:
-            self.v_des[1] = np.sign(error[1])*.2
-        else:
-            self.v_des[1] = np.sign(error[1])*.05
+        if get_image_bool:
+            rgb, depth, seg = self.get_image(q[0:3], q[3:7], True)
 
         # BiconMP velocity Controller
         q[3:7] = self.quaternion_workaround(q) #Reset yaw to zero
@@ -91,7 +81,38 @@ class B1Wrapper():
         self.pln_ctr = int((self.pln_ctr + 1)%(self.params['plan_freq']/self.params['sim_dt']))
         self.o +=1
         self.index +=1
-        return self.robot.get_state()
+        
+        if get_image_bool:
+            q,v = self.robot.get_state()
+            return q,v, rgb, depth, seg
+        else:
+            return self.robot.get_state()
+
+    def get_image(self, pos, quat, segmentation):
+        rot_mat = np.array(pybullet.getMatrixFromQuaternion(quat)).reshape(3, 3)
+        #### Set target point, camera view and projection matrices #
+        target = np.dot(rot_mat,np.array([1000, 0, 0])) + np.array(pos)
+        DRONE_CAM_VIEW = pybullet.computeViewMatrix(cameraEyePosition=pos+np.array([.5, 0, 0]),
+                                             cameraTargetPosition=target,
+                                             cameraUpVector=[0, 0, 1],
+                                             )
+        DRONE_CAM_PRO =  pybullet.computeProjectionMatrixFOV(fov=60.0,
+                                                      aspect=1.0,
+                                                      nearVal=.5,
+                                                      farVal=1000.0
+                                                      )
+        SEG_FLAG = pybullet.ER_SEGMENTATION_MASK_OBJECT_AND_LINKINDEX if segmentation else pybullet.ER_NO_SEGMENTATION_MASK
+        [w, h, rgb, dep, seg] = pybullet.getCameraImage(width=self.IMG_RES[0],
+                                                 height=self.IMG_RES[1],
+                                                 shadow=1,
+                                                 viewMatrix=DRONE_CAM_VIEW,
+                                                 projectionMatrix=DRONE_CAM_PRO,
+                                                 flags=SEG_FLAG
+                                                 )
+        rgb = np.reshape(rgb, (h, w, 4))
+        dep = np.reshape(dep, (h, w))
+        seg = np.reshape(seg, (h, w))
+        return rgb, dep, seg
 
     def set_cmd(self, v_des, w_des):
         self.v_des = v_des

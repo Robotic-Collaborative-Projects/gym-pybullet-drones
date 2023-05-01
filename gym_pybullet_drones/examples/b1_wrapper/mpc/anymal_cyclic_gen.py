@@ -369,9 +369,9 @@ class AnymalMpcGaitGen:
 
         t3 = time.time()
 
-        print("Cost Time :", t2 - t1)
-        print("Solve Time : ", t3 - t2)
-        print(" ================================== ")
+        # print("Cost Time :", t2 - t1)
+        # print("Solve Time : ", t3 - t2)
+        # print(" ================================== ")
 
         com_opt = self.mp.return_opt_com()
         mom_opt = self.mp.return_opt_mom()
@@ -504,7 +504,7 @@ class AnymalMpcGaitGen:
                                  us = self.ik.get_us(),
                                  cnt_plan = self.cnt_plan)
 
-        print("finished saving ...")
+        # print("finished saving ...")
         assert False
 
     def plot_plan(self, q, v, plot_force = True):
