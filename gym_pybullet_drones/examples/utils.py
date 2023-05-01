@@ -77,6 +77,11 @@ class EKFModel():
         
 
         return output_array, Ct    
+    
+    def reset_anchors(self, obs):
+        for i in range(len(obs.keys())):
+            self.anchor_points[i,:] = obs[str(i)]['state'][:3]
+            #print(self.anchor_points)
         
 
 

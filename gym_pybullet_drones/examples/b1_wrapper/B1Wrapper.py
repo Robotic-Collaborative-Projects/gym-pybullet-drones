@@ -113,6 +113,9 @@ class B1Wrapper():
         dep = np.reshape(dep, (h, w))
         seg = np.reshape(seg, (h, w))
         return rgb, dep, seg
+    
+    def get_b1_state(self):
+        return self.robot.get_state()
 
     def set_cmd(self, v_des, w_des):
         self.v_des = v_des

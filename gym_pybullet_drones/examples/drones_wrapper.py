@@ -87,17 +87,25 @@ class DroneEnvWrapper():
         self.obs = self.env._computeObs()
 
 
-    def update(self):    
+    def update(self, move_drone=None, target_pos=None):    
         
-        # for j in range(self.num_drones):
-        #     self.action[str(j)], _, _ = self.ctrl[j].computeControlFromState(self.env.TIMESTEP,
-        #                                                         state=self.obs[str(j)]["state"],
-        #                                                         target_pos=self.position_cmd[j,:],
-        #                                                         target_rpy=self.rotation_cmd[j,:],
-        #                                                         )
-        
+        if move_drone != None:
+            for j in range(self.num_drones):
+                if j == move_drone:
+                    self.action[str(j)], _, _ = self.ctrl[j].computeControlFromState(self.env.TIMESTEP,
+                                                                state=self.obs[str(j)]["state"],
+                                                                target_pos=target_pos,
+                                                                target_rpy=self.init_orientation[j,:],
+                                                                )
+                else:
+                    self.action[str(j)] = np.array([0,0,0,0])
+        else: 
+            self.action = {str(i): np.array([0,0,0,0]) for i in range(self.num_drones)}
         self.obs,_,_,_ = self.env.update(self.action)
             
+        return self.obs
+    
+    def get_obs_no_update(self):
         return self.obs
     
     def close(self):
