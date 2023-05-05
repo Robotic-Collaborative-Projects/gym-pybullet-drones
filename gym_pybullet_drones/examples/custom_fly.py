@@ -46,13 +46,14 @@ traj = trajectory.Trajectory(milestones=[[0,0,0], [ctr/2, 0, .4], [ctr, 0, 0]])
 herm = trajectory.HermiteTrajectory()
 herm.makeSpline(traj)
 
-GT_states = np.zeros((SIM_DURATION*SIM_FREQ, 6))
-est_states = np.zeros_like(GT_states)
-cov_diags = np.zeros_like(GT_states)
+GT_states = []
+est_states = []
+est_cov = []
 
-drones_GT = np.zeros((num_drones,SIM_DURATION*SIM_FREQ,6))
-drones_state = np.zeros_like(drones_GT)
-drones_cov = np.zeros_like(drones_GT)
+drones_GT = []
+drones_est_state = []
+drones_cov = []
+
 
 def run():    
     # Set up the Drones
@@ -68,13 +69,17 @@ def run():
     q, v = dog.get_b1_state()
     hold_and_fly = False
     delay = 0
-
+    dog_measurement_count= 0
+    save_drone = True
     for i in range(0, int(SIM_DURATION*SIM_FREQ)):
             
         if i == 0: #compute and store the initial values at t=0
-            est_states[i,:], cov_diags[i,:] = dogModel.compute_EKF(q[0:3], obs)
-            GT_states[i,:3] = q[:3]
-            GT_states[i,3:]=v[:3]
+            est_state, cov = dogModel.compute_EKF(q[0:3], obs)
+            
+            est_states.append(est_state)
+            est_cov.append(cov)
+            GT_dog = np.append(q[:3],v[:3])
+            GT_states.append(GT_dog)
             
         else: #move the simulators one step forward and compute the sensor model
             #dog follows velocity command
@@ -84,12 +89,26 @@ def run():
             if hold_and_fly:
                 # initialize the current drone ekf with the current position
                 if flight_time == 0:
-                    drone_EKF = droneEKFModel(next_drone, obs, dt)
-                
-                obs = drones.update(move_drone=next_drone, target_pos=INIT_drones[next_drone,:] + herm.eval(flight_time))
-                flight_time += dt    
-                if flight_time > 2:
+                    droneModel = droneEKFModel(next_drone, obs, dt)
+                    drone_est_state, drone_cov = droneModel.compute_EKF(obs)
+                    drones_GT.append(np.append(obs[str(next_drone)]['state'][:3],obs[str(next_drone)]['state'][10:13]))
+                    drones_est_state.append(drone_est_state)
+                    drones_cov.append(drone_cov)
+                if flight_time < 2:
+                    obs = drones.update(move_drone=next_drone, target_pos=INIT_drones[next_drone,:] + herm.eval(flight_time))
+                else:
+                    obs = drones.update(move_drone=next_drone, target_pos=INIT_drones[next_drone,:] + herm.eval(2))
+                    
+                if save_drone == True:
+                    drone_est_state, drone_cov = droneModel.compute_EKF(obs)
+                    drones_GT.append(np.append(obs[str(next_drone)]['state'][:3],obs[str(next_drone)]['state'][10:13]))
+                    drones_est_state.append(drone_est_state)
+                    drones_cov.append(drone_cov)
+                flight_time += dt   
+
+                if flight_time > 2.3:
                     hold_and_fly = False
+                    save_drone = False
                     dogModel.reset_anchors(obs)
                     next_drone += 1
                     if next_drone == num_drones:
@@ -99,18 +118,23 @@ def run():
                     #print(sens_state, '\n \n', sens_cov, '\n \n')
             else:
                 obs = drones.update()
-        # Store current time step information
-            est_states[i,:], cov_diags[i,:] = dogModel.compute_EKF(q[0:3], obs)
-            GT_states[i,:3] = q[:3]
-            GT_states[i,3:]=v[:3]
+                # Store current step information
+                est_state, cov = dogModel.compute_EKF(q[0:3], obs)
+                est_states.append(est_state)
+                est_cov.append(cov)
+                GT_dog = np.append(q[:3], v[:3])
+                GT_states.append(GT_dog)
+        
+            
         # check to determine if the robot is currently moving or waiting for the drones to land
             if not hold_and_fly:
                 if delay < 100:
                     delay +=1
             #Store the pybullet GT world frame, EKF state estimation and state covariance for the new time step
-                elif cov_diags[i,0] > .166:
+                elif cov[0,0] > .03:
                     dog.set_cmd(np.zeros(3),0)
                     hold_and_fly = True
+                    
                     delay = 0
         # store the current EKF estimates of the system
 
@@ -118,7 +142,8 @@ def run():
             
 
        
-    np.savez('results_out', GT_states, est_states, cov_diags)
+    np.savez('dog_results_out', GT_states, est_states, est_cov)
+    np.savez('drone_results_out', drones_GT, drones_est_state, drones_cov)
     print('yay') 
     drones.close()
     

@@ -21,14 +21,14 @@ class dogEKFModel():
         self.prev_state_mean[:3] = robot_initial_position
         self.prev_state_mean[3:] = robot_initial_vel
 
-        self.prev_state_cov = np.diag([.03,.03,.03,1,1,1])
+        self.prev_state_cov = np.diag([1,1,1,100,100,100])
 
 
         self.curr_state_mean = np.zeros((6,))
         self.curr_state_covar = np.zeros((6,6))
         
         # define the process and measurement noise
-        self.measurement_noise = .3*np.eye(self.num_anchors)
+        self.measurement_noise = .04*np.eye(self.num_anchors)
         self.process_noise = np.diag([1,1,1,100,100,100])
 
         # store the A matrix for the linear process model
@@ -46,7 +46,7 @@ class dogEKFModel():
         self.update_step(new_B1_pos, new_obs)
         self.prev_state_mean = self.curr_state_mean
         self.prev_state_cov = self.curr_state_covar
-        return self.curr_state_mean, np.diag(self.curr_state_covar)
+        return self.curr_state_mean, self.curr_state_covar
 
 
     def prediction_step(self):
@@ -101,20 +101,21 @@ class droneEKFModel():
         # store the anchor point positions
         self.num_anchors = len(initial_obs.keys())-1
         self.drone_num = drone_num
+
         self.anchor_points = np.zeros((self.num_anchors,3))
         idx = 0
         for key in initial_obs.keys():
             if int(key) != self.drone_num:
                 self.anchor_points[idx,:] = initial_obs[key]['state'][:3]
+                idx+=1
             else:
                 self.prev_state_mean = np.zeros((6,))
                 self.prev_state_mean[:3] = initial_obs[key]['state'][:3]
                 self.prev_state_mean[3:] = initial_obs[key]['state'][10:13]
-
-        
+      
         # initialize the previous mean and covariance
         
-        self.prev_state_cov = np.eye(6)*.1
+        self.prev_state_cov = np.diag([1,1,1,100,100,100])
         self.curr_state_mean = np.zeros((6,))
         self.curr_state_covar = np.zeros((6,6))
         
@@ -122,11 +123,21 @@ class droneEKFModel():
         
         self.process_noise = np.diag([1,1,1,10,10,10])
 
-        self.measurement_noise = .1*np.eye(self.num_anchors)
+        self.measurement_noise = .09*np.eye(self.num_anchors)
 
         # store the A matrix for the linear process model
         self.A = np.eye(6)
         self.A[:3,3:] = np.eye(3)*dt
+
+    def compute_EKF(self, new_obs):
+        '''
+        this takes in the
+        '''
+        self.prediction_step()
+        self.update_step(new_obs)
+        self.prev_state_mean = self.curr_state_mean
+        self.prev_state_cov = self.curr_state_covar
+        return self.curr_state_mean, self.curr_state_covar
 
     def prediction_step(self):
         self.curr_est_mean = self.A @ self.prev_state_mean 
@@ -141,9 +152,9 @@ class droneEKFModel():
         zt, _ = self.droneSensorModel(new_obs)
         # compute the measurement model with the estimated state, evaluate the jacobian of the measurement model at the estimated state
         z_est, Ct = self.droneSensorModel(new_obs, self.curr_est_mean[:3])
-
         # print(zt, '\n', '\n', z_est, '\n', '\n', Ct, '\n', '\n')
         Kt = self.curr_est_covar @ np.transpose(Ct) @ np.linalg.inv(Ct @ self.curr_est_covar @ np.transpose(Ct) + self.measurement_noise)
+
         # compute the curren state mean
         self.curr_state_mean = self.curr_est_mean + Kt @ (zt-z_est)
         self.curr_state_covar = self.curr_est_covar - Kt @ Ct @ self.curr_est_covar
@@ -157,22 +168,29 @@ class droneEKFModel():
         return output
 
     def droneSensorModel(self, drones_obs, mean=None):
-        output_array = np.zeros((len(drones_obs.keys())))
-        Ct = np.zeros((self.num_drones,6))
+        output_array = np.zeros((self.num_anchors))
+        Ct = np.zeros((self.num_anchors,6))
         # Drone x  wrt Drones 1-4
         if mean is None:
             drone_pos = drones_obs[str(self.drone_num)]['state'][:3]
         else:
             drone_pos = mean
         idx = 0
-        for j in range(len(drones_obs.keys())):
-            if j != self.drone_num:
-                other_drone_pos = drones_obs[str(j)]['state'][:3]
-                dist = np.linalg.norm(drone_pos-other_drone_pos)
-                output_array[idx] = dist
-                Ct[idx,:3] = self.compute_jacobian_one_robot(drone_pos, other_drone_pos, dist)[:]
+        for j in range(self.num_anchors):
+            dist = np.linalg.norm(drone_pos-self.anchor_points[j,:])
+            output_array[idx] = dist
+            Ct[idx,:3] = self.compute_jacobian_one_robot(drone_pos, self.anchor_points[j,:], dist)[:]
+            idx+=1
 
         return output_array, Ct 
+    
+    def reset_anchors(self, new_obs):
+        idx = 0
+        for i in range(len(new_obs.keys())):
+            if i != self.drone_num:
+                self.anchor_points[idx,:] = new_obs[str(i)]['state'][:3]
+                idx+=1
+            # print(self.anchor_points)
 
 
 # class DronesSensorModel():
